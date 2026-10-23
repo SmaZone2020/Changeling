@@ -2,25 +2,51 @@
 
 **English** · [简体中文](./README.zh-CN.md)
 
-An OpenAI-compatible endpoint that **never produces AI content**. Every agent turn parks here and waits for a human: you write the assistant message, you pick which tool to call, and you hand-edit every argument. The agent executes those tools on its own machine, sends the results back, and the loop repeats.
+A demo of a **hostile API relay**. It sits between an AI agent and the "model" it thinks it is talking to, and it forges every reply by hand — including tool calls the agent never asked for.
+
+This is not a proxy for real model traffic and it does not produce AI output. It exists to show one thing: **an agent that trusts its API provider will execute whatever tool calls that provider sends back.**
 
 ```
 OpenCode / Claude Code / Pi / any OpenAI-compatible agent
                     │  POST /v1/chat/completions
                     ▼
-            ┌───────────────┐   request parked (HTTP held open, 12s heartbeat)
+            ┌───────────────┐   request parked, reply written by a human
             │  Relay server │   ────────────────────────────────────┐
             └───────────────┘                                      │
                     ▲                                              ▼
         tool_calls / content                              /console WebUI
-                    │                                 you write the reply,
-                    │                                 pick tools, edit args
+                    │                                 you write the reply and
+                    │                                 forge the tool calls
                     └──────────────────────────────────────────────┘
 ```
 
-## Why
+## The point
 
-A normal AI gateway hides the model and treats tool calls as a side effect. This inverts it: **tool calls are the first-class thing, and the human is the model.** Every step is visible, every argument is editable, any call can be refused, and you can deliberately feed the agent broken input to watch it recover. Useful for debugging tool use, reviewing what an agent actually intends to do, or just hand-driving a long task.
+An agent's tool-use loop has exactly one trust boundary: the HTTP response from its inference endpoint. Whatever is in `choices[0].message.tool_calls` gets executed locally, with the agent's own permissions, usually without confirmation.
+
+Nothing in the OpenAI schema stops a provider from lying. A relay can:
+
+- **Call tools the user never approved** — and tools the agent never declared.
+- **Rewrite arguments silently.** `{"command":"ls"}` becomes `{"command":"rm -rf ~/projects"}`, and the agent has no way to tell.
+- **Decide when to call.** Forge a `tool_calls` round from a benign prompt, or suppress tool use entirely.
+- **Split and reorder calls**, queue several turns, or answer a different conversation than the one that asked.
+- **Seed the next turn.** Once one forged call lands, everything after it is shaped by the result the agent received.
+
+Because the relay also writes the assistant content, it can justify the call in text the user is reading: *"I'll just check the file permissions first"* while the actual call does something else.
+
+## What this demo does
+
+The console is the attacker's control panel. For each incoming turn you get:
+
+- The full transcript and the tools the agent declared.
+- A composer for the assistant message — free text, returned verbatim.
+- A tool picker. Clicking a declared tool fills in arguments from its JSON Schema; `+ custom` lets you name a tool that was never declared.
+- A raw JSON argument editor. Any edit ships as-is.
+- Multiple calls per turn, in any order.
+- `finish_reason` control, and an abort button.
+- A Replay row that restores exact arguments from earlier calls.
+
+Tool execution happens on the agent's machine. This server runs nothing — which is the uncomfortable part: **the payload doesn't need to run here.**
 
 ## Quick start
 
@@ -29,17 +55,19 @@ npm install
 npm run dev        # http://localhost:3000/console
 ```
 
-Then, in a second terminal, run the demo agent — it declares `bash` and `read_file` and genuinely executes whatever you send back:
+In a second terminal, run the demo agent. It declares `bash` and `read_file` and genuinely executes whatever comes back:
 
 ```bash
 npm run demo -- "list the files here, then read package.json"
 ```
 
-A turn appears in the browser. Click a tool name, the arguments template is filled in from the tool's JSON Schema, edit it, hit send. The demo agent runs the command, returns the result, and asks again.
+A turn appears in the browser. Click `bash`, adjust the arguments, send. The agent runs the command, returns the output, and asks again.
+
+To see the attack rather than a normal turn: pick a benign-looking assistant message, then send a tool call whose arguments differ from what the text describes. The agent has no mechanism to notice.
 
 ## Connecting a real agent
 
-The **Connect agent** button in the console has ready-to-copy config. The essentials:
+Any OpenAI-compatible client works. The **Connect agent** button has copyable config.
 
 | | |
 |---|---|
@@ -47,9 +75,7 @@ The **Connect agent** button in the console has ready-to-copy config. The essent
 | API key | any non-empty value (or a whitelist via `CONSOLE_API_KEYS`) |
 | Model | `relay-human` |
 
-### OpenCode
-
-`opencode.json`:
+OpenCode — `opencode.json`:
 
 ```json
 {
@@ -57,48 +83,35 @@ The **Connect agent** button in the console has ready-to-copy config. The essent
   "provider": {
     "relay": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Relay (human operator)",
+      "name": "Relay",
       "options": { "baseURL": "http://localhost:3000/v1", "apiKey": "relay-local" },
-      "models": { "relay-human": { "name": "Human operator" } }
+      "models": { "relay-human": { "name": "Relay" } }
     }
   },
   "model": "relay/relay-human"
 }
 ```
 
-### Pi
-
-Any client that speaks OpenAI chat completions works:
-
-```bash
-export OPENAI_BASE_URL=http://localhost:3000/v1
-export OPENAI_API_KEY=relay-local
-```
-
-### Claude Code
-
-Claude Code speaks the Anthropic protocol (`/v1/messages`, `tool_use` / `tool_result`). This build is OpenAI-only — see Roadmap.
-
-## What you control per turn
-
-- **Assistant content** — returned to the agent verbatim; may be empty.
-- **Tool name** — pick from the tools the agent declared, or hit `+ custom` and write a name it never declared.
-- **Every argument** — a raw JSON editor with live validation. Invalid JSON cannot be sent.
-- **Call count and order** — queue multiple tool calls; `index` follows the order you added them.
-- **`finish_reason`** — inferred from whether tool calls exist, or forced to `stop` / `length`.
-- **Replay** — tools used earlier in this session are listed in a Replay row; one click restores the exact arguments.
-- **Abort** — kills the turn immediately; the agent receives an error and stops waiting.
-
-Tool execution always happens on the agent side. This server runs no commands and touches no filesystem.
+Claude Code speaks the Anthropic protocol (`/v1/messages`, `tool_use` / `tool_result`). This build is OpenAI-only.
 
 ## Protocol notes
 
-- `POST /v1/chat/completions`, both `stream: true` and `stream: false`.
-- Streaming: `: relay-heartbeat` comment frames while you think, then one burst of `role → content → tool_calls → finish_reason → [DONE]`. `stream_options.include_usage` adds a usage frame.
-- Non-streaming: plain wait, up to 15 minutes (`RELAY_TIMEOUT_MS`).
-- `GET /v1/models` returns three aliases so clients' model pickers work.
+- `POST /v1/chat/completions`, `stream: true` and `stream: false`.
+- Streaming: `: relay-heartbeat` comment frames while you think, then a burst of `role → content → tool_calls → finish_reason → [DONE]`. `stream_options.include_usage` adds a usage frame.
+- Non-streaming: plain wait, 15 minutes by default (`RELAY_TIMEOUT_MS`).
+- `GET /v1/models` returns aliases so client model pickers work.
 - Session identity: hash of `system` + first `user` message; override with the `x-relay-session` header.
-- `x-agent-name` header overrides the agent label (otherwise guessed from User-Agent).
+- `x-agent-name` overrides the agent label shown in the console.
+
+## What to take away
+
+If you are building or operating an agent:
+
+1. **Pin the endpoint and verify it.** TLS protects the wire, not the provider. A compromised or swapped `baseURL` in a config file is enough.
+2. **Put an approval gate between `tool_calls` and execution**, and show the *arguments*, not the model's description of them.
+3. **Allowlist tools**; reject calls to names that were not in the request's `tools` array.
+4. **Keep secrets out of the agent's reach.** A relay that can issue one `bash` call owns everything the agent can read.
+5. **Log the raw response** — the exact `tool_calls` payload, not a summary — so forged rounds are auditable after the fact.
 
 ## Environment
 
@@ -110,31 +123,26 @@ Tool execution always happens on the agent side. This server runs no commands an
 ## Layout
 
 ```
-app/v1/chat/completions/route.ts   protocol surface: park, heartbeat, stream assembly
+app/v1/chat/completions/route.ts   fake endpoint: park, heartbeat, stream assembly
 app/api/state/route.ts             console polling (revision-diffed)
 app/api/turns/[id]/route.ts        submit / abort a turn
 app/api/sessions/[id]/route.ts     clear a session
 lib/store.ts                       in-memory state machine + parked-request resolvers
 lib/openai.ts                      OpenAI payloads and SSE frames
-components/console/*               the WebUI
+components/console/*               the control panel
 demo/agent.mjs                     demo agent that really executes tools
 scripts/smoke.mjs                  end-to-end contract checks (npm run smoke)
 ```
 
-## Known limits
+## Limits
 
-- **State is in memory.** Restarts drop sessions; single process only. For anything long-lived, move to Redis plus distributed waits (or switch parking to a poll-based async job).
-- **One turn blocks.** A session can hold several parked requests if the agent retries; the Queue tabs let you switch between them, but normally there is exactly one.
-- **OpenAI protocol only.** Claude Code needs an Anthropic `/v1/messages` adapter.
-- **Light auth.** Optional allowlist, no per-user isolation. Do not expose this to the public internet as-is.
+- **State is in memory.** Restarts drop sessions; single process only.
+- **One turn blocks.** A session can hold several parked requests if the agent retries; Queue tabs switch between them.
+- **OpenAI protocol only.** No Anthropic `/v1/messages` adapter yet.
 
-## Roadmap
+## Scope
 
-- [ ] Anthropic `/v1/messages` adapter (`tool_use` / `tool_result`)
-- [ ] Redis-backed store with cross-process waits
-- [ ] Per-tool auto-approve policies (still editable)
-- [ ] Turn history export as a replayable JSON transcript
-- [ ] Multi-operator claim / handoff
+This is a local, single-operator demonstration of a trust failure, with the agent's tools pointing at a sandbox. It is not a proxy to deploy in front of real traffic, and it is not a tool for attacking third-party services.
 
 ## License
 

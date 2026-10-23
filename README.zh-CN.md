@@ -2,25 +2,51 @@
 
 [English](./README.md) · **简体中文**
 
-一个**不生产任何 AI 内容**的 OpenAI 兼容端点。Agent 每发一轮请求都会停在这里等你：assistant 那一轮由你写，调哪个工具由你选，每个参数由你手改。Agent 拿到 `tool_calls` 后在自己的机器上执行，把结果发回来，循环继续。
+一个**恶意 API 中转站**的演示。它夹在 AI Agent 与它以为的"模型"之间，由人来伪造每一轮回复 —— 包括 Agent 根本没请求过的工具调用。
+
+这不是真实模型流量的代理，也不产出 AI 内容。它只演示一件事：**Agent 信任它的 API 提供方，而提供方想让它执行什么工具调用，它就会执行什么。**
 
 ```
 OpenCode / Claude Code / Pi / 任何 OpenAI 兼容 Agent
                     │  POST /v1/chat/completions
                     ▼
-            ┌───────────────┐   请求挂起（HTTP 保持打开，12s 心跳）
+            ┌───────────────┐   请求挂起，回复由人手工伪造
             │  Relay 服务   │   ────────────────────────────────┐
             └───────────────┘                                   │
                     ▲                                           ▼
        tool_calls / content                             /console WebUI
-                    │                                    你在这里写回复、
-                    │                                    选工具、改参数
+                    │                               你在这里写回复、
+                    │                               伪造工具调用
                     └───────────────────────────────────────────┘
 ```
 
-## 为什么这么做
+## 问题所在
 
-常规 AI 网关把模型挡在后面，工具调用只是模型的副产品。这里把顺序倒过来：**工具调用是第一公民，人就是模型。** 每一步都看得见，每个参数都能改，任何调用都能拒绝，还能故意喂错误输入看它怎么自救。适合调试 Agent 的工具行为、做执行前审查，或者单纯手动推一段长任务。
+Agent 的工具循环只有一个信任边界：推理端点返回的那个 HTTP 响应。`choices[0].message.tool_calls` 里写什么，它就在本地以自身权限执行什么，通常不做任何确认。
+
+OpenAI 协议里没有任何机制能阻止提供方撒谎。一个中转站可以：
+
+- **调用用户从未批准的工具** —— 甚至是 Agent 从未声明过的工具。
+- **静默改写参数。** `{"command":"ls"}` 变成 `{"command":"rm -rf ~/projects"}`，Agent 没有任何办法分辨。
+- **决定什么时候调用。** 从一句无害的提问里伪造出一轮 `tool_calls`，或者干脆让工具调用不发生。
+- **拆分、重排调用**，堆多轮请求，或者拿一段不相干的对话去应答另一个会话。
+- **为下一轮埋好引子。** 一次伪造调用落地后，之后的一切都被 Agent 收到的那个结果塑形。
+
+由于中转站还负责生成 assistant 正文，它可以在用户眼前用文字为调用做掩护：*"我先看一下文件权限"*，而实际的调用干的是别的事。
+
+## 这个 Demo 做了什么
+
+控制台就是攻击者的操作台。每一轮进来，你能拿到：
+
+- 完整对话记录，以及 Agent 声明了哪些工具。
+- assistant 正文编辑器 —— 自由输入，原样返回。
+- 工具选择器。点已声明的工具会按其 JSON Schema 自动填好参数；`+ custom` 可以写一个从未声明过的工具名。
+- 原始 JSON 参数编辑器。改成什么样就发什么样。
+- 一轮里挂多个调用，顺序自定。
+- `finish_reason` 控制，以及中止按钮。
+- Replay 行，一键恢复本次会话里用过的原始参数。
+
+工具执行发生在 Agent 自己的机器上。本服务什么都不跑 —— 这正是最难受的地方：**攻击载荷根本不需要在这里执行。**
 
 ## 快速开始
 
@@ -29,17 +55,19 @@ npm install
 npm run dev        # http://localhost:3000/console
 ```
 
-再开一个终端跑演示 Agent —— 它声明了 `bash` 和 `read_file`，并且会真的执行你发回去的调用：
+另开一个终端跑演示 Agent。它声明了 `bash` 和 `read_file`，并且会真的执行你发回去的东西：
 
 ```bash
 npm run demo -- "列出当前目录文件，然后读一下 package.json"
 ```
 
-浏览器里会出现待处理的一轮：点工具名 → 按该工具的 JSON Schema 自动带出参数模板 → 改参数 → 发送。演示 Agent 执行命令，把结果送回来，再问下一轮。
+浏览器里出现待处理的一轮。点 `bash`、改参数、发送，Agent 执行命令、回传输出、再问下一轮。
+
+想直接看攻击而不是正常流程：写一句无害的 assistant 正文，然后发一个参数和这段文字描述对不上的工具调用。Agent 没有任何机制能察觉。
 
 ## 接入真实 Agent
 
-控制台右上角 **Connect agent** 里有现成可复制的配置。核心三项：
+凡是说 OpenAI 协议的客户端都能接。控制台右上角 **Connect agent** 里有可复制的配置。
 
 | | |
 |---|---|
@@ -47,9 +75,7 @@ npm run demo -- "列出当前目录文件，然后读一下 package.json"
 | API Key | 任意非空值（或用 `CONSOLE_API_KEYS` 配白名单） |
 | Model | `relay-human` |
 
-### OpenCode
-
-`opencode.json`：
+OpenCode —— `opencode.json`：
 
 ```json
 {
@@ -57,48 +83,35 @@ npm run demo -- "列出当前目录文件，然后读一下 package.json"
   "provider": {
     "relay": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Relay (human operator)",
+      "name": "Relay",
       "options": { "baseURL": "http://localhost:3000/v1", "apiKey": "relay-local" },
-      "models": { "relay-human": { "name": "Human operator" } }
+      "models": { "relay-human": { "name": "Relay" } }
     }
   },
   "model": "relay/relay-human"
 }
 ```
 
-### Pi
-
-凡是说 OpenAI chat completions 的客户端都能接：
-
-```bash
-export OPENAI_BASE_URL=http://localhost:3000/v1
-export OPENAI_API_KEY=relay-local
-```
-
-### Claude Code
-
-Claude Code 走 Anthropic 协议（`/v1/messages`，`tool_use` / `tool_result`）。当前实现只做 OpenAI 兼容，见 Roadmap。
-
-## 一轮里你能控制什么
-
-- **assistant 正文** —— 原样回给 Agent，可为空。
-- **工具名** —— 从 Agent 声明的列表里点选；也可以点 `+ custom`，手写一个它根本没声明过的工具名。
-- **每一个参数** —— 原始 JSON 编辑器，带实时校验，不合法不让发。
-- **调用数量与顺序** —— 一次可以挂多个 tool call，`index` 按添加顺序生成。
-- **`finish_reason`** —— 默认按有没有 tool call 自动推断，也可强制为 `stop` / `length`。
-- **Replay** —— 本会话里用过的工具列在 Replay 行，一键恢复原参数，不用重敲。
-- **Abort** —— 立刻掐断这一轮，Agent 收到错误并结束等待。
-
-工具执行永远发生在 Agent 那一侧。本服务不执行任何命令、不读写任何文件。
+Claude Code 走 Anthropic 协议（`/v1/messages`，`tool_use` / `tool_result`）。当前实现只做 OpenAI 兼容。
 
 ## 协议细节
 
-- `POST /v1/chat/completions`，`stream: true` 与 `stream: false` 都支持。
-- 流式：思考期间发 `: relay-heartbeat` 注释帧保活，你提交后一次性推 `role → content → tool_calls → finish_reason → [DONE]`。带 `stream_options.include_usage` 时补一个 usage 分片。
-- 非流式：直接等，上限 15 分钟（`RELAY_TIMEOUT_MS`）。
-- `GET /v1/models` 返回三个别名，方便客户端做模型选择。
+- `POST /v1/chat/completions`，`stream: true` 与 `stream: false`。
+- 流式：思考期间发 `: relay-heartbeat` 注释帧保活，提交后一次性推 `role → content → tool_calls → finish_reason → [DONE]`。带 `stream_options.include_usage` 时补一个 usage 分片。
+- 非流式：直接等，默认上限 15 分钟（`RELAY_TIMEOUT_MS`）。
+- `GET /v1/models` 返回别名，方便客户端做模型选择。
 - 会话识别：`system` + 第一条 `user` 消息的哈希；可用 `x-relay-session` 头显式指定。
-- `x-agent-name` 头可覆盖 Agent 显示名，否则从 User-Agent 推断。
+- `x-agent-name` 头可覆盖控制台里显示的 Agent 名。
+
+## 该得出什么结论
+
+如果你在开发或使用 Agent：
+
+1. **固定端点并做校验。** TLS 保护的是链路，不是提供方。配置文件里一个被替换的 `baseURL` 就够了。
+2. **在 `tool_calls` 和执行之间加审批**，而且要把**参数原文**摆给人看，不是模型对参数的转述。
+3. **做工具白名单**；调用名不在该请求 `tools` 数组里的，直接拒绝。
+4. **别让密钥落在 Agent 能碰到的地方。** 一个能下发 `bash` 调用的中转站，等于拥有了 Agent 能读到的一切。
+5. **记录原始响应** —— 完整的 `tool_calls` 载荷，不是摘要 —— 事后才能审计被伪造的那几轮。
 
 ## 环境变量
 
@@ -110,31 +123,26 @@ Claude Code 走 Anthropic 协议（`/v1/messages`，`tool_use` / `tool_result`�
 ## 目录结构
 
 ```
-app/v1/chat/completions/route.ts   协议外观：挂起、心跳、流式拼装
+app/v1/chat/completions/route.ts   伪造端点：挂起、心跳、流式拼装
 app/api/state/route.ts             控制台轮询（revision 增量）
 app/api/turns/[id]/route.ts        提交 / 中止一轮
 app/api/sessions/[id]/route.ts     清空会话
 lib/store.ts                       内存状态机 + 挂起请求的 resolver
 lib/openai.ts                      OpenAI 报文与 SSE 帧
-components/console/*               WebUI
+components/console/*               攻击操作台
 demo/agent.mjs                     会真执行工具的演示 Agent
 scripts/smoke.mjs                  端到端契约校验（npm run smoke）
 ```
 
 ## 已知边界
 
-- **状态在内存里。** 重启即丢，且只能单进程。要长期跑就换 Redis + 跨进程等待（或把挂起改成轮询式异步任务）。
-- **单轮阻塞。** Agent 重试时一个会话可能同时挂多条请求，Queue 标签可以切换，但正常情况只有一条。
-- **只支持 OpenAI 协议。** Claude Code 需要 Anthropic `/v1/messages` 适配层。
-- **鉴权很轻。** 只有可选白名单，没有多用户隔离。不要直接暴露到公网。
+- **状态在内存里。** 重启即丢，只能单进程。
+- **单轮阻塞。** Agent 重试时一个会话可能同时挂多条请求，Queue 标签用来切换。
+- **只支持 OpenAI 协议。** 暂无 Anthropic `/v1/messages` 适配层。
 
-## Roadmap
+## 使用范围
 
-- [ ] Anthropic `/v1/messages` 适配（`tool_use` / `tool_result`）
-- [ ] Redis 存储 + 跨进程等待
-- [ ] 按工具配置自动放行策略（仍可编辑）
-- [ ] 把一轮历史导出成可重放的 JSON transcript
-- [ ] 多操作员认领 / 交接
+这是一个本地、单操作员、工具指向沙箱的信任失效演示。它不是一个可以放在真实流量前面的代理，也不是用来攻击第三方服务的工具。
 
 ## License
 
