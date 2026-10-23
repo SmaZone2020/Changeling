@@ -11,5 +11,5 @@ next-env.d.ts
 .DS_Store
 *.log
 
-# Local drafts: blog posts and write-ups are not part of the repo.
+# my own blog draft, ignore
 posts/
