@@ -1,0 +1,29 @@
+{
+  "name": "agent-relay",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "SmaZone2020",
+  "description": "Human-in-the-loop model endpoint: an OpenAI-compatible API where the operator writes every assistant turn and every tool call.",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "demo": "node demo/agent.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2",
+    "typescript": "5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
