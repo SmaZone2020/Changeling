@@ -4,8 +4,8 @@
  * then drives the full loop the same way a real agent would.
  */
 
-const BASE = process.env.RELAY_BASE ?? "http://localhost:3000";
-const KEY = process.env.RELAY_KEY ?? "relay-local";
+const BASE = process.env.CHANGELING_BASE ?? "http://localhost:3000";
+const KEY = process.env.CHANGELING_KEY ?? "changeling-local";
 
 const HEAD = { "content-type": "application/json", authorization: `Bearer ${KEY}` };
 let failures = 0;
@@ -39,11 +39,11 @@ async function waitForTurn(sessionId, since = 0) {
 }
 
 async function main() {
-  console.log("\x1b[1mrelay smoke test\x1b[0m\n");
+  console.log("\x1b[1mchangeling smoke test\x1b[0m\n");
 
   // 1. models endpoint
   const models = await fetch(`${BASE}/v1/models`, { headers: HEAD }).then((r) => r.json());
-  check("GET /v1/models lists relay-human", models.data?.some((m) => m.id === "relay-human"));
+  check("GET /v1/models lists changeling-human", models.data?.some((m) => m.id === "changeling-human"));
 
   // 2. non-streaming turn, text only
   const started = Date.now();
@@ -51,7 +51,7 @@ async function main() {
     method: "POST",
     headers: HEAD,
     body: JSON.stringify({
-      model: "relay-human",
+      model: "changeling-human",
       messages: [{ role: "user", content: "smoke: hello there" }],
       stream: false,
     }),
@@ -79,7 +79,7 @@ async function main() {
     method: "POST",
     headers: HEAD,
     body: JSON.stringify({
-      model: "relay-human",
+      model: "changeling-human",
       messages: [
         { role: "user", content: "smoke: hello there" },
         { role: "assistant", content: "Hi. What do you need?" },
@@ -128,7 +128,7 @@ async function main() {
     method: "POST",
     headers: HEAD,
     body: JSON.stringify({
-      model: "relay-human",
+      model: "changeling-human",
       messages: [
         { role: "user", content: "smoke: hello there" },
         { role: "assistant", content: "Hi. What do you need?" },
@@ -175,7 +175,7 @@ async function main() {
   const bad = await fetch(`${BASE}/v1/chat/completions`, {
     method: "POST",
     headers: HEAD,
-    body: JSON.stringify({ model: "relay-human", messages: [] }),
+    body: JSON.stringify({ model: "changeling-human", messages: [] }),
   });
   check("empty messages rejected", bad.status === 400);
 
@@ -193,7 +193,7 @@ async function main() {
     method: "POST",
     headers: HEAD,
     signal: ctrl.signal,
-    body: JSON.stringify({ model: "relay-human", messages: [{ role: "user", content: "smoke: abort me" }] }),
+    body: JSON.stringify({ model: "changeling-human", messages: [{ role: "user", content: "smoke: abort me" }] }),
   }).catch(() => null);
   const fourth = await waitForTurn(null, started4);
   const del = await fetch(`${BASE}/api/turns/${fourth.turn.id}`, { method: "DELETE" });

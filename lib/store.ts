@@ -3,7 +3,7 @@ import type {
   ChatMessage,
   FinishReason,
   PublicState,
-  RelayConfig,
+  ChangelingConfig,
   Session,
   ToolCall,
   ToolDef,
@@ -11,14 +11,14 @@ import type {
 } from "./types";
 
 /**
- * In-memory relay store.
+ * In-memory Changeling store.
  *
  * A pending turn holds an HTTP response open. The resolver for that response
  * lives here, outside React/Next, keyed by turn id. Everything is pinned to
  * globalThis so dev-mode module reloads don't orphan an in-flight request.
  */
 
-const TIMEOUT_MS = Number(process.env.RELAY_TIMEOUT_MS || 15 * 60 * 1000);
+const TIMEOUT_MS = Number(process.env.CHANGELING_TIMEOUT_MS || 15 * 60 * 1000);
 const MAX_SESSIONS = 50;
 const MAX_TURNS_PER_SESSION = 60;
 const MAX_PENDING_PER_SESSION = 8;
@@ -41,19 +41,19 @@ interface StoreShape {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __relayStore: StoreShape | undefined;
+  var __changelingStore: StoreShape | undefined;
 }
 
 function store(): StoreShape {
-  if (!globalThis.__relayStore) {
-    globalThis.__relayStore = {
+  if (!globalThis.__changelingStore) {
+    globalThis.__changelingStore = {
       sessions: new Map(),
       resolvers: new Map(),
       order: [],
       revision: 1,
     };
   }
-  return globalThis.__relayStore;
+  return globalThis.__changelingStore;
 }
 
 function bump() {
@@ -64,7 +64,7 @@ export function revision() {
   return store().revision;
 }
 
-export function config(): RelayConfig {
+export function config(): ChangelingConfig {
   return {
     timeoutMs: TIMEOUT_MS,
     authEnforced: Boolean(process.env.CONSOLE_API_KEYS?.trim()),
@@ -285,7 +285,7 @@ export function intake(input: IntakeInput): IntakeResult {
         t.error = "Operator did not respond before the deadline";
         s.resolvers.delete(turn.id);
         bump();
-        reject(new RelayTimeout(t.error));
+        reject(new ChangelingTimeout(t.error));
       });
     }, TIMEOUT_MS);
 
@@ -298,7 +298,7 @@ export function intake(input: IntakeInput): IntakeResult {
           t.error = "Client disconnected";
           s.resolvers.delete(turn.id);
           bump();
-          reject(new RelayAbort("Client disconnected"));
+          reject(new ChangelingAbort("Client disconnected"));
         });
       };
       if (input.signal.aborted) onAbort();
@@ -319,8 +319,8 @@ export function intake(input: IntakeInput): IntakeResult {
   return { session, turn, outcome };
 }
 
-export class RelayTimeout extends Error {}
-export class RelayAbort extends Error {}
+export class ChangelingTimeout extends Error {}
+export class ChangelingAbort extends Error {}
 
 function failTurn(turn: Turn, reason: string) {
   const s = store();
@@ -357,10 +357,10 @@ export function findTurn(turnId: string): { session: Session; turn: Turn } | nul
 export function answer(turnId: string, input: AnswerInput): Turn {
   const s = store();
   const found = findTurn(turnId);
-  if (!found) throw new RelayError(404, "turn_not_found", "No such turn");
+  if (!found) throw new ChangelingError(404, "turn_not_found", "No such turn");
   const { session, turn } = found;
   if (turn.status !== "pending") {
-    throw new RelayError(409, "turn_not_pending", `Turn is ${turn.status}`);
+    throw new ChangelingError(409, "turn_not_pending", `Turn is ${turn.status}`);
   }
 
   const toolCalls: ToolCall[] = input.toolCalls
@@ -403,10 +403,10 @@ export function answer(turnId: string, input: AnswerInput): Turn {
 export function cancelTurn(turnId: string, reason = "Cancelled by operator"): Turn {
   const s = store();
   const found = findTurn(turnId);
-  if (!found) throw new RelayError(404, "turn_not_found", "No such turn");
+  if (!found) throw new ChangelingError(404, "turn_not_found", "No such turn");
   const { turn } = found;
   if (turn.status !== "pending") {
-    throw new RelayError(409, "turn_not_pending", `Turn is ${turn.status}`);
+    throw new ChangelingError(409, "turn_not_pending", `Turn is ${turn.status}`);
   }
   turn.status = "cancelled";
   turn.error = reason;
@@ -423,7 +423,7 @@ export function cancelTurn(turnId: string, reason = "Cancelled by operator"): Tu
 export function clearSession(sessionId: string) {
   const s = store();
   const session = s.sessions.get(sessionId);
-  if (!session) throw new RelayError(404, "session_not_found", "No such session");
+  if (!session) throw new ChangelingError(404, "session_not_found", "No such session");
   for (const t of session.turns) {
     if (t.status === "pending") cancelTurn(t.id);
   }
@@ -448,7 +448,7 @@ function normalizeArgs(raw: string): string {
   }
 }
 
-export class RelayError extends Error {
+export class ChangelingError extends Error {
   status: number;
   code: string;
   constructor(status: number, code: string, message: string) {

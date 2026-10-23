@@ -14,7 +14,7 @@ export default function TopBar({
       <div className="brand">
         <div className="brand-mark" />
         <div className="brand-text">
-          <span className="brand-name">RELAY</span>
+          <span className="brand-name">CHANGELING</span>
           <span className="brand-sub">human in the loop</span>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import type { FinishReason } from "@/lib/types";
-import { answer, cancelTurn, RelayError } from "@/lib/store";
+import { answer, cancelTurn, ChangelingError } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +43,7 @@ export async function POST(
     const turn = answer(id, { content, toolCalls, finishReason: body.finishReason });
     return Response.json({ ok: true, turn });
   } catch (err) {
-    if (err instanceof RelayError) {
+    if (err instanceof ChangelingError) {
       return Response.json({ error: err.message, code: err.code }, { status: err.status });
     }
     return Response.json({ error: "Failed to submit reply" }, { status: 500 });
@@ -59,7 +59,7 @@ export async function DELETE(
     const turn = cancelTurn(id);
     return Response.json({ ok: true, turn });
   } catch (err) {
-    if (err instanceof RelayError) {
+    if (err instanceof ChangelingError) {
       return Response.json({ error: err.message, code: err.code }, { status: err.status });
     }
     return Response.json({ error: "Failed to cancel" }, { status: 500 });

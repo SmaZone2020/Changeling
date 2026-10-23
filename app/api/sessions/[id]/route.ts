@@ -1,4 +1,4 @@
-import { clearSession, RelayError } from "@/lib/store";
+import { clearSession, ChangelingError } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export async function DELETE(
     clearSession(id);
     return Response.json({ ok: true });
   } catch (err) {
-    if (err instanceof RelayError) {
+    if (err instanceof ChangelingError) {
       return Response.json({ error: err.message }, { status: err.status });
     }
     return Response.json({ error: "Failed to clear session" }, { status: 500 });

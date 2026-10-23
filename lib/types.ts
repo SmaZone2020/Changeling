@@ -1,4 +1,4 @@
-/** Shared types for the relay. Imported by both server and client code. */
+/** Shared types for Changeling. Imported by both server and client code. */
 
 export type ChatRole = "system" | "developer" | "user" | "assistant" | "tool";
 
@@ -85,7 +85,7 @@ export interface Session {
   turns: Turn[];
 }
 
-export interface RelayConfig {
+export interface ChangelingConfig {
   timeoutMs: number;
   authEnforced: boolean;
   endpoint: string;
@@ -95,7 +95,7 @@ export interface PublicState {
   revision: number;
   now: number;
   sessions: Session[];
-  config: RelayConfig;
+  config: ChangelingConfig;
 }
 
 export interface StateEnvelope {

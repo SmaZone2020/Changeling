@@ -10,9 +10,9 @@
  * → tool results → next request.
  */
 
-const BASE = process.env.RELAY_BASE ?? "http://localhost:3000/v1";
-const KEY = process.env.RELAY_KEY ?? "relay-local";
-const MODEL = process.env.RELAY_MODEL ?? "relay-human";
+const BASE = process.env.CHANGELING_BASE ?? "http://localhost:3000/v1";
+const KEY = process.env.CHANGELING_KEY ?? "changeling-local";
+const MODEL = process.env.CHANGELING_MODEL ?? "changeling-human";
 const MAX_ROUNDS = Number(process.env.MAX_ROUNDS ?? 12);
 
 const TOOLS = [
@@ -114,7 +114,7 @@ const cyan = (s) => `\x1b[36m${s}\x1b[0m`;
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;
 const amber = (s) => `\x1b[33m${s}\x1b[0m`;
 
-console.log(dim(`relay  ${BASE}`));
+console.log(dim(`changeling  ${BASE}`));
 console.log(dim(`model  ${MODEL}`));
 console.log(dim(`tools  bash, read_file`));
 console.log(dim("─".repeat(60)));

@@ -312,7 +312,7 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
       </div>
       <h2>No agent connected yet</h2>
       <p>
-        Point OpenCode, Claude Code, or any OpenAI-compatible agent at this relay. Every request parks
+        Point OpenCode, Claude Code, or any OpenAI-compatible agent at this endpoint. Every request parks
         here and waits for you to write the assistant turn and choose the tool calls.
       </p>
       <button className="btn-primary" onClick={onConnect} style={{ marginTop: 4 }}>

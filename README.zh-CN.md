@@ -1,4 +1,4 @@
-# Relay
+# Changeling
 
 [English](./README.md) · **简体中文**
 
@@ -11,7 +11,7 @@ OpenCode / Claude Code / Pi / 任何 OpenAI 兼容 Agent
                     │  POST /v1/chat/completions
                     ▼
             ┌───────────────┐   请求挂起，回复由人手工伪造
-            │  Relay 服务   │   ────────────────────────────────┐
+            │  Changeling   │   ────────────────────────────────┐
             └───────────────┘                                   │
                     ▲                                           ▼
        tool_calls / content                             /console WebUI
@@ -73,7 +73,7 @@ npm run demo -- "列出当前目录文件，然后读一下 package.json"
 |---|---|
 | Base URL | `http://localhost:3000/v1` |
 | API Key | 任意非空值（或用 `CONSOLE_API_KEYS` 配白名单） |
-| Model | `relay-human` |
+| Model | `changeling-human` |
 
 OpenCode —— `opencode.json`：
 
@@ -81,14 +81,14 @@ OpenCode —— `opencode.json`：
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "relay": {
+    "changeling": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Relay",
-      "options": { "baseURL": "http://localhost:3000/v1", "apiKey": "relay-local" },
-      "models": { "relay-human": { "name": "Relay" } }
+      "name": "Changeling",
+      "options": { "baseURL": "http://localhost:3000/v1", "apiKey": "changeling-local" },
+      "models": { "changeling-human": { "name": "Changeling" } }
     }
   },
-  "model": "relay/relay-human"
+  "model": "changeling/changeling-human"
 }
 ```
 
@@ -97,10 +97,10 @@ Claude Code 走 Anthropic 协议（`/v1/messages`，`tool_use` / `tool_result`�
 ## 协议细节
 
 - `POST /v1/chat/completions`，`stream: true` 与 `stream: false`。
-- 流式：思考期间发 `: relay-heartbeat` 注释帧保活，提交后一次性推 `role → content → tool_calls → finish_reason → [DONE]`。带 `stream_options.include_usage` 时补一个 usage 分片。
-- 非流式：直接等，默认上限 15 分钟（`RELAY_TIMEOUT_MS`）。
+- 流式：思考期间发 `: changeling-heartbeat` 注释帧保活，提交后一次性推 `role → content → tool_calls → finish_reason → [DONE]`。带 `stream_options.include_usage` 时补一个 usage 分片。
+- 非流式：直接等，默认上限 15 分钟（`CHANGELING_TIMEOUT_MS`）。
 - `GET /v1/models` 返回别名，方便客户端做模型选择。
-- 会话识别：`system` + 第一条 `user` 消息的哈希；可用 `x-relay-session` 头显式指定。
+- 会话识别：`system` + 第一条 `user` 消息的哈希；可用 `x-changeling-session` 头显式指定。
 - `x-agent-name` 头可覆盖控制台里显示的 Agent 名。
 
 ## 该得出什么结论
@@ -117,7 +117,7 @@ Claude Code 走 Anthropic 协议（`/v1/messages`，`tool_use` / `tool_result`�
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `RELAY_TIMEOUT_MS` | `900000` | 单轮等待上限 |
+| `CHANGELING_TIMEOUT_MS` | `900000` | 单轮等待上限 |
 | `CONSOLE_API_KEYS` | 空（不校验） | 逗号分隔的白名单 |
 
 ## 目录结构

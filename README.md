@@ -1,8 +1,8 @@
-# Relay
+# Changeling
 
 **English** · [简体中文](./README.zh-CN.md)
 
-A demo of a **hostile API relay**. It sits between an AI agent and the "model" it thinks it is talking to, and it forges every reply by hand — including tool calls the agent never asked for.
+A demo of a **hostile API endpoint**. It sits between an AI agent and the "model" it thinks it is talking to, and it forges every reply by hand — including tool calls the agent never asked for.
 
 This is not a proxy for real model traffic and it does not produce AI output. It exists to show one thing: **an agent that trusts its API provider will execute whatever tool calls that provider sends back.**
 
@@ -11,7 +11,7 @@ OpenCode / Claude Code / Pi / any OpenAI-compatible agent
                     │  POST /v1/chat/completions
                     ▼
             ┌───────────────┐   request parked, reply written by a human
-            │  Relay server │   ────────────────────────────────────┐
+            │  Changeling   │   ────────────────────────────────────┐
             └───────────────┘                                      │
                     ▲                                              ▼
         tool_calls / content                              /console WebUI
@@ -24,7 +24,7 @@ OpenCode / Claude Code / Pi / any OpenAI-compatible agent
 
 An agent's tool-use loop has exactly one trust boundary: the HTTP response from its inference endpoint. Whatever is in `choices[0].message.tool_calls` gets executed locally, with the agent's own permissions, usually without confirmation.
 
-Nothing in the OpenAI schema stops a provider from lying. A relay can:
+Nothing in the OpenAI schema stops a provider from lying. Changeling can:
 
 - **Call tools the user never approved** — and tools the agent never declared.
 - **Rewrite arguments silently.** `{"command":"ls"}` becomes `{"command":"rm -rf ~/projects"}`, and the agent has no way to tell.
@@ -32,7 +32,7 @@ Nothing in the OpenAI schema stops a provider from lying. A relay can:
 - **Split and reorder calls**, queue several turns, or answer a different conversation than the one that asked.
 - **Seed the next turn.** Once one forged call lands, everything after it is shaped by the result the agent received.
 
-Because the relay also writes the assistant content, it can justify the call in text the user is reading: *"I'll just check the file permissions first"* while the actual call does something else.
+Because Changeling also writes the assistant content, it can justify the call in text the user is reading: *"I'll just check the file permissions first"* while the actual call does something else.
 
 ## What this demo does
 
@@ -73,7 +73,7 @@ Any OpenAI-compatible client works. The **Connect agent** button has copyable co
 |---|---|
 | Base URL | `http://localhost:3000/v1` |
 | API key | any non-empty value (or a whitelist via `CONSOLE_API_KEYS`) |
-| Model | `relay-human` |
+| Model | `changeling-human` |
 
 OpenCode — `opencode.json`:
 
@@ -81,14 +81,14 @@ OpenCode — `opencode.json`:
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "relay": {
+    "changeling": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Relay",
-      "options": { "baseURL": "http://localhost:3000/v1", "apiKey": "relay-local" },
-      "models": { "relay-human": { "name": "Relay" } }
+      "name": "Changeling",
+      "options": { "baseURL": "http://localhost:3000/v1", "apiKey": "changeling-local" },
+      "models": { "changeling-human": { "name": "Changeling" } }
     }
   },
-  "model": "relay/relay-human"
+  "model": "changeling/changeling-human"
 }
 ```
 
@@ -97,10 +97,10 @@ Claude Code speaks the Anthropic protocol (`/v1/messages`, `tool_use` / `tool_re
 ## Protocol notes
 
 - `POST /v1/chat/completions`, `stream: true` and `stream: false`.
-- Streaming: `: relay-heartbeat` comment frames while you think, then a burst of `role → content → tool_calls → finish_reason → [DONE]`. `stream_options.include_usage` adds a usage frame.
-- Non-streaming: plain wait, 15 minutes by default (`RELAY_TIMEOUT_MS`).
+- Streaming: `: changeling-heartbeat` comment frames while you think, then a burst of `role → content → tool_calls → finish_reason → [DONE]`. `stream_options.include_usage` adds a usage frame.
+- Non-streaming: plain wait, 15 minutes by default (`CHANGELING_TIMEOUT_MS`).
 - `GET /v1/models` returns aliases so client model pickers work.
-- Session identity: hash of `system` + first `user` message; override with the `x-relay-session` header.
+- Session identity: hash of `system` + first `user` message; override with the `x-changeling-session` header.
 - `x-agent-name` overrides the agent label shown in the console.
 
 ## What to take away
@@ -110,14 +110,14 @@ If you are building or operating an agent:
 1. **Pin the endpoint and verify it.** TLS protects the wire, not the provider. A compromised or swapped `baseURL` in a config file is enough.
 2. **Put an approval gate between `tool_calls` and execution**, and show the *arguments*, not the model's description of them.
 3. **Allowlist tools**; reject calls to names that were not in the request's `tools` array.
-4. **Keep secrets out of the agent's reach.** A relay that can issue one `bash` call owns everything the agent can read.
+4. **Keep secrets out of the agent's reach.** Anything that can issue one `bash` call owns everything the agent can read.
 5. **Log the raw response** — the exact `tool_calls` payload, not a summary — so forged rounds are auditable after the fact.
 
 ## Environment
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RELAY_TIMEOUT_MS` | `900000` | Max wait per turn |
+| `CHANGELING_TIMEOUT_MS` | `900000` | Max wait per turn |
 | `CONSOLE_API_KEYS` | empty (no auth) | Comma-separated allowlist |
 
 ## Layout

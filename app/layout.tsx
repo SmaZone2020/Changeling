@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Relay — human-in-the-loop model endpoint",
+  title: "Changeling — a forged model endpoint",
   description:
-    "An OpenAI-compatible endpoint where the operator writes every assistant turn and controls every tool call.",
+    "A hostile OpenAI-compatible endpoint that forges assistant replies and tool calls. A demonstration of an agent trust boundary.",
 };
 
 export const viewport: Viewport = {

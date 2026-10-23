@@ -35,16 +35,16 @@ export default function ConnectDrawer({ onClose }: { onClose: () => void }) {
           {
             $schema: "https://opencode.ai/config.json",
             provider: {
-              relay: {
+              changeling: {
                 npm: "@ai-sdk/openai-compatible",
-                name: "Relay (human operator)",
-                options: { baseURL: baseUrl, apiKey: "relay-local" },
+                name: "Changeling",
+                options: { baseURL: baseUrl, apiKey: "changeling-local" },
                 models: {
-                  "relay-human": { name: "Human operator" },
+                  "changeling-human": { name: "Human operator" },
                 },
               },
             },
-            model: "relay/relay-human",
+            model: "changeling/changeling-human",
           },
           null,
           2,
@@ -53,7 +53,7 @@ export default function ConnectDrawer({ onClose }: { onClose: () => void }) {
       {
         label: "shell (temporary override)",
         tag: "env",
-        code: `# then run: opencode\nOPENAI_BASE_URL=${baseUrl} \\\nOPENAI_API_KEY=relay-local \\\nopencode -m relay/relay-human`,
+        code: `# then run: opencode\nOPENAI_BASE_URL=${baseUrl} \\\nOPENAI_API_KEY=changeling-local \\\nopencode -m changeling/changeling-human`,
       },
     ],
     cURL: [
@@ -62,9 +62,9 @@ export default function ConnectDrawer({ onClose }: { onClose: () => void }) {
         tag: "curl",
         code: `curl ${baseUrl}/chat/completions \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer relay-local" \\
+  -H "Authorization: Bearer changeling-local" \\
   -d '{
-    "model": "relay-human",
+    "model": "changeling-human",
     "messages": [{ "role": "user", "content": "List the files in src/" }],
     "tools": [{
       "type": "function",
@@ -87,10 +87,10 @@ export default function ConnectDrawer({ onClose }: { onClose: () => void }) {
         tag: "py",
         code: `from openai import OpenAI
 
-client = OpenAI(base_url="${baseUrl}", api_key="relay-local")
+client = OpenAI(base_url="${baseUrl}", api_key="changeling-local")
 
 resp = client.chat.completions.create(
-    model="relay-human",
+    model="changeling-human",
     messages=[{"role": "user", "content": "What changed in the last commit?"}],
     tools=[{
         "type": "function",
@@ -117,7 +117,7 @@ print(msg.content, msg.tool_calls)`,
 {
   "id": "chatcmpl-…",
   "object": "chat.completion",
-  "model": "relay-human",
+  "model": "changeling-human",
   "choices": [{
     "index": 0,
     "message": {
@@ -137,7 +137,7 @@ print(msg.content, msg.tool_calls)`,
       {
         label: "streaming (stream: true)",
         tag: "sse",
-        code: `: relay-heartbeat          ← every 12s while you think
+        code: `: changeling-heartbeat          ← every 12s while you think
 
 data: {"choices":[{"delta":{"role":"assistant"}}]}
 data: {"choices":[{"delta":{"content":"Running the test suite"}}]}
@@ -188,8 +188,8 @@ data: [DONE]`,
           <div>
             <div className="section-title">API key</div>
             <div className="copy-row">
-              <span className="grow">relay-local</span>
-              <button className="mini-btn" onClick={() => doCopy("relay-local", "key")}>
+              <span className="grow">changeling-local</span>
+              <button className="mini-btn" onClick={() => doCopy("changeling-local", "key")}>
                 {copied === "key" ? "copied" : "copy"}
               </button>
             </div>
@@ -257,7 +257,7 @@ data: [DONE]`,
               </div>
               <div className="note">
                 <b>3 · Agent acts.</b> It receives <b>tool_calls</b> and runs them <i>locally</i> on
-                its own machine, with its own permissions. The relay never executes anything.
+                its own machine, with its own permissions. Changeling never executes anything.
               </div>
               <div className="note">
                 <b>4 · Results return.</b> Tool output comes back as <b>role: "tool"</b> messages
@@ -270,9 +270,9 @@ data: [DONE]`,
             <div className="section-title">Runtime</div>
             <dl className="kv">
               <dt>turn timeout</dt>
-              <dd>15 minutes (RELAY_TIMEOUT_MS)</dd>
+              <dd>15 minutes (CHANGELING_TIMEOUT_MS)</dd>
               <dt>session key</dt>
-              <dd>system + first user message hash, or x-relay-session header</dd>
+              <dd>system + first user message hash, or x-changeling-session header</dd>
               <dt>protocol</dt>
               <dd>OpenAI chat completions, streaming + non-streaming</dd>
               <dt>tool execution</dt>

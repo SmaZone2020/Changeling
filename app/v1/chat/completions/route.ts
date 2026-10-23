@@ -1,5 +1,5 @@
 import type { ChatMessage, ToolDef } from "@/lib/types";
-import { checkAuth, intake, RelayAbort, RelayTimeout, RelayError } from "@/lib/store";
+import { checkAuth, intake, ChangelingAbort, ChangelingTimeout, ChangelingError } from "@/lib/store";
 import {
   agentLabel,
   awaitWithHeartbeat,
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const auth = req.headers.get("authorization");
   const gate = checkAuth(auth);
   if (!gate.ok) {
-    return errorBody(401, "Invalid API key for this relay.", "invalid_api_key", "authentication_error");
+    return errorBody(401, "Invalid API key for Changeling.", "invalid_api_key", "authentication_error");
   }
 
   let body: Body;
@@ -50,11 +50,11 @@ export async function POST(req: Request) {
     return errorBody(400, "`messages` must be a non-empty array.", "invalid_messages");
   }
   if (body.n && body.n > 1) {
-    return errorBody(400, "Only n=1 is supported by the relay.", "unsupported_parameter");
+    return errorBody(400, "Only n=1 is supported.", "unsupported_parameter");
   }
 
   const tools = Array.isArray(body.tools) ? body.tools : [];
-  const model = body.model || "relay-human";
+  const model = body.model || "changeling-human";
   const stream = body.stream === true;
 
   let result: ReturnType<typeof intake>;
@@ -71,12 +71,12 @@ export async function POST(req: Request) {
       maxTokens: body.max_completion_tokens ?? body.max_tokens,
       toolChoice: body.tool_choice,
       parallelToolCalls: body.parallel_tool_calls,
-      explicitSession: req.headers.get("x-relay-session"),
+      explicitSession: req.headers.get("x-changeling-session"),
       signal: req.signal,
     });
   } catch (err) {
-    if (err instanceof RelayError) return errorBody(err.status, err.message, err.code);
-    return errorBody(500, "Relay failed to accept the request.", "relay_error");
+    if (err instanceof ChangelingError) return errorBody(err.status, err.message, err.code);
+    return errorBody(500, "Changeling failed to accept the request.", "changeling_error");
   }
 
   const { session, turn, outcome } = result;
@@ -114,14 +114,14 @@ export async function POST(req: Request) {
           })
           .catch((err: unknown) => {
             const message =
-              err instanceof RelayTimeout
+              err instanceof ChangelingTimeout
                 ? "Operator did not respond before the deadline."
-                : err instanceof RelayAbort
+                : err instanceof ChangelingAbort
                   ? "Client disconnected."
                   : err instanceof Error
                     ? err.message
-                    : "Relay failure.";
-            push(sse({ error: { message, type: "relay_error", code: "relay_aborted" } }));
+                    : "Changeling failure.";
+            push(sse({ error: { message, type: "changeling_error", code: "changeling_aborted" } }));
             push(sseDone());
             closed = true;
             try {
@@ -140,8 +140,8 @@ export async function POST(req: Request) {
         "cache-control": "no-cache, no-transform",
         connection: "keep-alive",
         "x-accel-buffering": "no",
-        "x-relay-session": session.id,
-        "x-relay-turn": turn.id,
+        "x-changeling-session": session.id,
+        "x-changeling-turn": turn.id,
       },
     });
   }
@@ -151,18 +151,18 @@ export async function POST(req: Request) {
     return Response.json(completionBody(resolved, session, created, model), {
       headers: {
         "cache-control": "no-store",
-        "x-relay-session": session.id,
-        "x-relay-turn": turn.id,
+        "x-changeling-session": session.id,
+        "x-changeling-turn": turn.id,
       },
     });
   } catch (err) {
-    if (err instanceof RelayTimeout) {
-      return errorBody(504, "Operator did not respond before the deadline.", "relay_timeout", "relay_error");
+    if (err instanceof ChangelingTimeout) {
+      return errorBody(504, "Operator did not respond before the deadline.", "changeling_timeout", "changeling_error");
     }
-    if (err instanceof RelayAbort) {
-      return errorBody(499, "Client disconnected before a reply was submitted.", "relay_aborted", "relay_error");
+    if (err instanceof ChangelingAbort) {
+      return errorBody(499, "Client disconnected before a reply was submitted.", "changeling_aborted", "changeling_error");
     }
-    return errorBody(500, err instanceof Error ? err.message : "Relay failure.", "relay_error", "relay_error");
+    return errorBody(500, err instanceof Error ? err.message : "Changeling failure.", "changeling_error", "changeling_error");
   }
 }
 

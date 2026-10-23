@@ -45,7 +45,7 @@ export function completionBody(
       },
     ],
     usage: usageFor(session.messages, reply),
-    system_fingerprint: "relay_human_in_the_loop",
+    system_fingerprint: "changeling_human_in_the_loop",
   };
 }
 
@@ -83,7 +83,7 @@ export function sse(payload: unknown): Uint8Array {
 }
 
 const DONE = new TextEncoder().encode("data: [DONE]\n\n");
-const PING = new TextEncoder().encode(": relay-heartbeat\n\n");
+const PING = new TextEncoder().encode(": changeling-heartbeat\n\n");
 
 export const sseDone = () => DONE;
 export const ssePing = () => PING;
@@ -104,13 +104,13 @@ function chunk(
     object: "chat.completion.chunk",
     created: init.created,
     model: init.model,
-    system_fingerprint: "relay_human_in_the_loop",
+    system_fingerprint: "changeling_human_in_the_loop",
     choices: [{ index: 0, delta, logprobs: null, finish_reason: finishReason }],
   };
 }
 
 /**
- * The relay answers in a single burst, but OpenAI clients expect a shaped
+ * Changeling answers in a single burst, but OpenAI clients expect a shaped
  * stream: role first, then content, then tool_calls, then the terminator.
  */
 export function* streamFrames(
